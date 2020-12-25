@@ -153,18 +153,21 @@ int main() {
 		}
 		if (++mcounter > spd_monster_max) {
 			end_game = _move_monster(play_area, count_monsters);
-			
+			mcounter = 0;
 			if ((wave) && (count_monsters < max_monsters)) {
 				for (int i = 0; i < length; ++i) {
 					if ((play_area[i][height - 1].empty()) && (dist(gen) < persent_of_monsters)) {
-						if (dist(gen) < 25)
+						int distgen = dist(gen);
+						if (distgen < 5) {
+							play_area[i][height - 1].set(1, 2, 0);
+						}
+						else if (distgen < 25)
 							play_area[i][height - 1].set(1, 1, 0);
 						else
 							play_area[i][height - 1].set(1, 0, 0);
 					}
 				}
 			}
-			mcounter = 0;
 
 			if (wave) {
 				if (--length_wave < 0) {
@@ -196,7 +199,7 @@ int main() {
 					}
 				}
 			}
-			else if ((mv == 'n') && (pix.type == 5) && (count_pulls < max_pulls))
+			else if ((mv == 'n') && (pix.type == 3) && (count_pulls < max_pulls))
 				play_area[gun_line][front_line].set(5, max_strength_pulls, 1);
 		}
 
