@@ -55,7 +55,7 @@ struct layer {
 class pixel {
 private:
 	char background = char(32);
-	const int size_layers = 3;
+	const int size_layers = 4;
 	const std::vector<std::vector<char>>* ruins;
 	bool empt;
 	std::vector<layer> layers;
