@@ -4,16 +4,29 @@
 #include <string>
 #include <algorithm>
 #include <windows.h>
+#include <conio.h>
 #include "Dririx.h"
 
 //ruin_object[0] - blocks, ruin_object[1] - monsters, ruin_object[2] - front, ruin_object[3] - gun, ruin_object[4] - man, ruin_object[5] - missile1
-const std::vector<std::vector<char>> ruin_objects{ {char(176), char(177), char(178)}, {'0', '1', '2', '3'}, {char(205)}, {char(202)}, {char(84)}, {char(143)} }; 
+const std::vector<std::vector<char>> ruin_objects{ {char(176), char(176), char(176), char(177), char(177), char(177), char(178), char(178), char(178)}, {char(175), char(143), 77}, {char(205)}, {char(207)}, {char(84)}, {char(249)} };
 const char bg = 32;
 const int length = 20, height = 40;
 const pt sides[] = { {0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1} };
 
+void setcur(int x, int y)
+{
+	COORD coord;
+	coord.X = x;
+	coord.Y = y;
+	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+}
+
 int distance(const int x, const int y, const int a, const int b) {
 	return round(sqrt(pow(x - a, 2) + pow(y - b, 2)));
+}
+
+bool in_square(const pt& point, const pt& size_square) {
+	return ((point.x < size_square.x) && (point.x > -1) && (point.y < size_square.y) && (point.y > -1)) ? true : false;
 }
 
 void show(const std::vector<std::vector<pixel>>& play_area) {
@@ -39,28 +52,153 @@ void mk_protect(std::vector<std::vector<pixel>>& play_area, const size_t front_l
 	for (int i = (length / 2) + 1; i < length; ++i)
 		play_area[i][front_line].set(2, 0, 0);
 
-	int bl = front_line + 1, el = front_line + 1 + protection_thickness;
+	int bl = front_line + 1, el = front_line + 1 + protection_thickness, size_of_type = ruin_objects[0].size() - 1;
 	for (int i = 0; i < length; ++i) {
-		for (int j = bl; j < el; ++j){
-			play_area[i][j].set(0, 2, 0);
+		for (int j = bl; j < el; ++j) {
+			play_area[i][j].set(0, size_of_type, 0);
 		}
 	}
 }
 
-void _move_pulls(std::vector<std::vector<pixel>>& play_area) {
-	for (int i = 0; i < length; ++i) {
-		for (int j = 0; j < height; ++j) {
+int _move_pulls(std::vector<std::vector<pixel>>& play_area) {
+	int counter = 0;
+	for (int j = height - 1; j > -1; --j) {
+		for (int i = 0; i < length; ++i) {
 			layer pix = play_area[i][j].get(1);
-			
-			if (pix.symbol == ruin_objects[5][0]) {
+
+			if (pix.type == 5) {
+				++counter;
+
+				pt step = pt(i, j) + sides[4];
+				play_area[i][j].del(1);
+				if (in_square(step, pt(length, height))) {
+					layer pix_step = play_area[step.x][step.y].get(0);
+
+					if (pix_step.type == 1) {
+						play_area[step.x][step.y].crush(0);
+						play_area[step.x][step.y].set(pix.type, pix.strength, 1);
+						play_area[step.x][step.y].crush(1);
+					}
+					else
+						play_area[step.x][step.y].set(pix.type, pix.strength, 1);
+				}
 
 			}
 		}
 	}
+	return counter;
+}
+
+bool _move_monster(std::vector<std::vector<pixel>>& play_area, int &count_monsters) {
+	count_monsters = 0;
+	for (int i = 0; i < length; ++i) {
+		for (int j = 0; j < height; ++j) {
+			layer pix = play_area[i][j].get(0);
+
+			if (pix.type == 1) {
+				++count_monsters;
+
+				pt step = pt(i, j) + sides[0];
+				if (in_square(step, pt(length, height))) {
+					layer pix_step = play_area[step.x][step.y].get(0);
+
+					if (pix_step.type == -1) {
+						play_area[i][j].del(0);
+						play_area[step.x][step.y].set(pix.type, pix.strength, 0);
+						pix_step = play_area[step.x][step.y].get(1);
+						if (pix_step.type == 5) {
+							play_area[step.x][step.y].crush(0);
+							play_area[step.x][step.y].crush(1);
+						}
+					}
+					else if (pix_step.type == 1) {}
+					else
+						play_area[step.x][step.y].crush(0);
+				}
+				else {
+					setcur(length / 2 - 4, height / 2);
+					stopp("Game over", 0);
+					return true;
+				}
+			}
+		}
+	}
+	return false;
 }
 
 int main() {
+	int speed = 100;
 	std::vector<std::vector<pixel>> play_area(length, std::vector<pixel>(height, (&ruin_objects)));
-	mk_protect(play_area, 1, 3);
-	show(play_area);
+	const int spd_pull_max = 1 * speed, spd_monster_max = 20 * speed, persent_of_monsters = 4, front_line = 1, protect = 5;
+	const int max_pulls = 3, max_monsters = 15;
+	int pcounter = 0, mcounter = 0, gun_line = length/2, count_pulls = 0, count_monsters = 0;
+	bool end_game = false;
+	std::mt19937 gen{ std::random_device()() };
+	std::uniform_int_distribution<int> dist(0, 99);
+
+	int length_wave = 100, length_pause = 40, counter_waves = 0;
+	bool wave = true;
+
+	const int max_strength_pulls = (int)ruin_objects[5].size()-1;
+
+	mk_protect(play_area, front_line, protect);
+
+	while (!end_game) {
+		show(play_area);
+		setcur(0, 0);
+
+		if (++pcounter > spd_pull_max) {
+			count_pulls = _move_pulls(play_area);
+			pcounter = 0;
+		}
+		if (++mcounter > spd_monster_max) {
+			end_game = _move_monster(play_area, count_monsters);
+			
+			if ((wave) && (count_monsters < max_monsters)) {
+				for (int i = 0; i < length; ++i) {
+					if ((play_area[i][height - 1].empty()) && (dist(gen) < persent_of_monsters)) {
+						if (dist(gen) < 25)
+							play_area[i][height - 1].set(1, 1, 0);
+						else
+							play_area[i][height - 1].set(1, 0, 0);
+					}
+				}
+			}
+			mcounter = 0;
+
+			if (wave) {
+				if (--length_wave < 0) {
+					length_wave = 100;
+					wave = false;
+				}
+			}
+			else {
+				if (--length_pause < 0) {
+					length_pause = 40;
+					wave = true;
+				}
+			}
+		}
+
+		if (_kbhit()) {
+			const char mv = _getch();
+			layer pix = play_area[gun_line][front_line].get(0);
+			if (((mv == 'a') || (mv == 'd')) && (pix.type == 3)) {
+				pt step = pt(gun_line, front_line) + ((mv == 'a') ? sides[6] : sides[2]);
+				if (in_square(step, pt(length, height))) {
+					layer step_pix = play_area[step.x][step.y].get(0);
+					if (step_pix.type == 2) {
+						play_area[gun_line][front_line].set(2, 0, 0);
+						play_area[gun_line][front_line - 1].del(0);
+						gun_line = step.x;
+						play_area[gun_line][front_line].set(3, 0, 0);
+						play_area[gun_line][front_line - 1].set(4, 0, 0);
+					}
+				}
+			}
+			else if ((mv == 'n') && (pix.type == 5) && (count_pulls < max_pulls))
+				play_area[gun_line][front_line].set(5, max_strength_pulls, 1);
+		}
+
+	}
 }

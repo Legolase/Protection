@@ -13,6 +13,25 @@ void stopp(const std::string& message, const int i) {
 
 struct pt {
 	int x, y;
+
+	pt(): x(0), y(0){}
+	pt(const int a, const int b): x(a), y(b) {}
+	pt operator+(const pt& a) const {
+		return pt(this->x + a.x, this->y + a.y);
+	}
+	pt operator-(const pt& a) const {
+		return pt(this->x - a.x, this->y - a.y);
+	}
+	void operator=(const pt& a) {
+		this->x = a.x;
+		this->y = a.y;
+	}
+	bool operator==(const pt& a) const {
+		return ((this->x == a.x) && (this->y == a.y)) ? true : false;
+	}
+	bool operator!=(const pt& a) const {
+		return ((this->x != a.x) || (this->y != a.y)) ? true : false;
+	}
 };
 
 struct layer {
@@ -35,7 +54,7 @@ struct layer {
 
 class pixel {
 private:
-	const char background = char(32);
+	char background = char(32);
 	const int size_layers = 3;
 	const std::vector<std::vector<char>>* ruins;
 	bool empt;
@@ -54,7 +73,20 @@ public:
 				stopp("set() -> layers[level] not exist", 1);
 		}
 		else
-			stopp("set -> *ruins[a][b] not exist", 1);
+			stopp("set -> *ruins[" + std::to_string(a) + "][" + std::to_string(b) + "] not exist", 1);
+	}
+	void del(const size_t level) {
+		if (level < size_layers) {
+			layers[level] = layer();
+			empt = true;
+			for (int i = 0; i < size_layers; ++i)
+				if (layers[i].symbol != background) {
+					empt = false;
+					break;
+				}
+		}
+		else
+			stopp("del() -> level(" + std::to_string(level) + ") not exist", 1);
 	}
 	void clear() {
 		layers = std::vector<layer>(size_layers);
@@ -80,17 +112,14 @@ public:
 		this->layers = a.layers;
 	}
 	void crush(const size_t level) {
-		if (layers[level].strength > 0) {
-			set(layers[level].type, layers[level].strength - 1, level);
+		if (level < size_layers) {
+			if (layers[level].strength > 0)
+				set(layers[level].type, layers[level].strength - 1, level);
+			else
+				del(level);
 		}
-		else {
-			layers[level] = layer();
-			empt = true;
-			for (int i = 0; i < size_layers; ++i)
-				if (layers[i].symbol != background) {
-					empt = false;
-					break;
-				}
-		}
+		else
+			stopp("crush() -> level(" + std::to_string(level) + ") not exist", 1);
 	}
+	bool empty() { return empt; }
 };
