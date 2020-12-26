@@ -42,7 +42,14 @@ void show(const std::vector<std::vector<pixel>>& play_area) {
 	std::cout << res;
 }
 
-void mk_protect(std::vector<std::vector<pixel>>& play_area, const size_t front_line, const size_t protection_thickness) {
+void mk_protect(std::vector<std::vector<pixel>>& play_area, int from, int to) {
+	const int mStBlocks = ruin_objects[0].size() - 1;
+	for (int i = 0; i < length; ++i)
+		for (int j = from; j < to; ++j)
+			play_area[i][j].set(0, mStBlocks, 0);
+}
+
+void mk_start_front(std::vector<std::vector<pixel>>& play_area, const size_t front_line, const size_t protection_thickness) {
 	for (int i = 0; i < length / 2; ++i)
 		play_area[i][front_line].set(2, 0, 0);
 
@@ -190,32 +197,28 @@ void _crush_expl(std::vector<std::vector<pixel>>& play_area) {
 }
 
 int main() {
-	int speed = 75;
+	int speed = 70;
 	std::vector<std::vector<pixel>> play_area(length, std::vector<pixel>(height, (&ruin_objects)));
 	const int spd_pull_max = 1 * speed, spd_monster_max = 25 * speed, 
 		spd_raket_max = 4 * speed, spd_expl_max = 25 * speed,
-		persent_of_monsters = 4, front_line = 1, protect = 5;
+		persent_of_monsters = 4, front_line = 1, protect = 4;
 	const int max_pulls = 3, max_monsters = 15, max_expl = 1;
 	int pcounter = 0, mcounter = 0, rcounter = 0, ecounter = 0, gun_line = length / 2, count_pulls = 0, count_monsters = 0, count_rackets = 0;
 	bool end_game = false;
 	std::mt19937 gen{ std::random_device()() };
 	std::uniform_int_distribution<int> dist(0, 99);
 
-	int length_wave = 100, length_pause = 40, counter_waves = 0;
+	int length_wave = 100, length_pause = 40, counter_waves = 0, regeneration = 5;
 	bool wave = true;
 
 	const int max_strength_pulls = (int)ruin_objects[5].size()-1, max_strength_rakets = (int)ruin_objects[6].size() - 1;
 
-	mk_protect(play_area, front_line, protect);
+	mk_start_front(play_area, front_line, protect);
 
 	while (!end_game) {
 		show(play_area);
 		setcur(0, 0);
 
-		if (++pcounter > spd_pull_max) {
-			count_pulls = _move_pulls(play_area);
-			pcounter = 0;
-		}
 		if (++mcounter > spd_monster_max) {
 			end_game = _move_monster(play_area, count_monsters);
 			mcounter = 0;
@@ -234,26 +237,32 @@ int main() {
 				}
 			}
 
-			if (wave) {
-				if (--length_wave < 0) {
-					length_wave = 100;
-					wave = false;
-				}
+			if ((wave) && (--length_wave < 0)) {
+				length_wave = 100;
+				wave = false;
+				++counter_waves;
 			}
-			else {
-				if (--length_pause < 0) {
-					length_pause = 40;
-					wave = true;
-				}
+			else if (--length_pause < 0) {
+				length_pause = 40;
+				wave = true;
 			}
+		}
+		if (++pcounter > spd_pull_max) {
+			count_pulls = _move_pulls(play_area);
+			pcounter = 0;
+		}
+		if (++ecounter > spd_expl_max) {
+			ecounter = 0;
+			_crush_expl(play_area);
 		}
 		if (++rcounter > spd_raket_max) {
 			rcounter = 0;
 			count_rackets = _move_rakets(play_area);
 		}
-		if (++ecounter > spd_expl_max) {
-			ecounter = 0;
-			_crush_expl(play_area);
+
+		if ((counter_waves > regeneration) && (count_monsters == 0)) {
+			counter_waves = 0;
+			mk_protect(play_area, 2, 6);
 		}
 
 		if (_kbhit()) {
